@@ -119,4 +119,6 @@ cleanup_file=delete-gcp-setup.sh
 echo "Create uninstaller script in the current directory '$cleanup_file'"
 echo "gcloud iam service-accounts delete ${sa_valtix_gateway_email} --quiet" > $cleanup_file
 echo "gcloud iam service-accounts delete ${sa_valtix_controller_email} --quiet" >> $cleanup_file
+echo "rm $cleanup_file" >> $cleanup_file
+chmod +x $cleanup_file
 
