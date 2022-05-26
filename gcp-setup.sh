@@ -135,14 +135,15 @@ gcloud projects add-iam-policy-binding $project_id --member \
 inventory_topic_name=${prefix}-inventory-topic
 inventory_subscription_name=${prefix}-inventory-subscription
 inventory_sink_name=${prefix}-inventory-sink
-printf 'Setting up service accounts in project: %s\n' $inventory_topic_name
-printf 'Valtix controller service account: %s\n' $inventory_subscription_name
-printf 'Valtix gateway service account: %s\n' $inventory_sink_name
+printf 'Setting up real time inventory in project: %s\n' $project_id
+printf 'Valtix inventory pub/sub topic: %s\n' $inventory_topic_name
+printf 'Valtix inventory pub/sub subscription: %s\n' $inventory_subscription_name
+printf 'Valtix inventory logging sink: %s\n' $inventory_sink_name
 
 # check if a pub/sub topic exists
 inventory_topic_id=$(gcloud pubsub topics list --format=json --filter=name:$inventory_topic_name | jq -r .[0].name)
 if [ "$inventory_topic_id" != "null" ]; then
-    printf 'Valtix inventory pub/sub topic already exists: %s\n' $inventory_topic_id
+    printf 'Valtix inventory pub/sub topic already exist. Skipping\n'
 else
     printf 'Creating valtix inventory pub/sub topic: %s\n', $inventory_topic_name
     gcloud pubsub topics create $inventory_topic_name
@@ -152,7 +153,7 @@ fi
 # check if a pub/sub subscription exists
 inventory_subscription_id=$(gcloud pubsub subscriptions list --format=json --filter=name:$inventory_subscription_name | jq -r .[0].name)
 if [ "$inventory_subscription_id" != "null" ]; then
-     printf 'Valtix inventory pub/sub subscription already exists: %s\n' $inventory_subscription_id
+     printf 'Valtix inventory pub/sub subscription already exists. Skipping\n'
 else
     printf 'Creating valtix inventory pub/sub subscription: %s\n', $inventory_subscription_name
     gcloud pubsub subscriptions create $inventory_subscription_name \
@@ -164,7 +165,7 @@ fi
 # check if a logging sink exists
 inventory_sink_id=$(gcloud logging sinks list --format=json --filter=name:$inventory_sink_name | jq -r .[0].name)
 if [ "$inventory_sink_id" != "null" ]; then
-     printf 'Valtix inventory logging sink already exists: %s\n' $inventory_sink_id
+     printf 'Valtix inventory logging sink already exists. Skipping\n'
 else
     printf 'Creating valtix inventory logging sink: %s\n', $inventory_sink_name
     gcloud logging sinks create $inventory_sink_name \
