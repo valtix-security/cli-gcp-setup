@@ -5,22 +5,27 @@
 # 2. allow Valtix gateway access to GCP Secret Manager (optional)
 #
 prefix=valtix
+webhook_endpoint=""
 ####################################################################################
 
 usage() {
     echo "Usage: $0 [args]"
     echo "-h This help message"
     echo "-p <prefix> - Prefix to use for the Service Accounts, defaults to valtix"
+    echo "-w <webhook_endpoint> - Your Webhook Endpoint, used for real time inventory"
     exit 1
 }
 
-while getopts "hp:" optname; do
+while getopts "hp:w:" optname; do
     case "${optname}" in
         h)
             usage
             ;;
         p)
             prefix=${OPTARG}
+            ;;
+        w)
+            webhook_endpoint=${OPTARG}
             ;;
     esac
 done
@@ -40,6 +45,9 @@ printf "You selected ${project[$yn]}\n"
 gcloud config set project ${project[$yn]}
 gcloud services enable compute.googleapis.com
 gcloud services enable iam.googleapis.com
+gcloud services enable pubsub.googleapis.com
+gcloud services enable logging.googleapis.com
+
 
 #(optional): gcloud services enable secretmanager.googleapis.com
 gcloud services enable secretmanager.googleapis.com
@@ -59,15 +67,26 @@ then
     exit 1
 fi
 printf "Creating service accounts..\n"
-gcloud iam service-accounts create $sa_controller_name \
-    --description="service account used by Valtix to create resources in the project" \
-    --display-name=$sa_controller_name \
-    --no-user-output-enabled --quiet
 
-gcloud iam service-accounts create $sa_gateway_name \
-    --description="service account used by Valtix gateway to access GCP Secrets" \
-    --display-name=$sa_gateway_name \
-    --no-user-output-enabled --quiet
+controller_result=$(gcloud iam service-accounts list --format=json --filter=name:$sa_controller_name | jq -r .[0].email)
+if [ "$controller_result" != "null" ]; then
+    printf 'Valtix controller service account already exists. Skipping\n'
+else
+    gcloud iam service-accounts create $sa_controller_name \
+        --description="service account used by Valtix to create resources in the project" \
+        --display-name=$sa_controller_name \
+        --no-user-output-enabled --quiet
+fi
+
+gateway_result=$(gcloud iam service-accounts list --format=json --filter=name:$sa_gateway_name | jq -r .[0].email)
+if [ "$gateway_result" != "null" ]; then
+    printf 'Valtix gateway service account already exists. Skipping\n'
+else
+    gcloud iam service-accounts create $sa_gateway_name \
+        --description="service account used by Valtix gateway to access GCP Secrets" \
+        --display-name=$sa_gateway_name \
+        --no-user-output-enabled --quiet
+fi
 
 # wait for the service accounts to be created
 while true; do
@@ -96,11 +115,75 @@ gcloud projects add-iam-policy-binding $project_id --member \
  --role "roles/iam.serviceAccountUser" \
  --no-user-output-enabled --quiet
 
+ gcloud projects add-iam-policy-binding $project_id --member \
+    serviceAccount:$sa_valtix_controller_email \
+    --role "roles/pubsub.admin" \
+    --no-user-output-enabled --quiet
+
+ gcloud projects add-iam-policy-binding $project_id --member \
+    serviceAccount:$sa_valtix_controller_email \
+    --role "roles/logging.admin" \
+    --no-user-output-enabled --quiet
+
 # This step is optional.  This is to allow Valtix Gateway service account access secrets from Secret Manager
 gcloud projects add-iam-policy-binding $project_id --member \
  serviceAccount:$sa_valtix_gateway_email \
  --role "roles/secretmanager.secretAccessor" \
  --no-user-output-enabled --quiet
+
+# enabling real time inventory
+inventory_topic_name=${prefix}-inventory-topic
+inventory_subscription_name=${prefix}-inventory-subscription
+inventory_sink_name=${prefix}-inventory-sink
+printf 'Setting up service accounts in project: %s\n' $inventory_topic_name
+printf 'Valtix controller service account: %s\n' $inventory_subscription_name
+printf 'Valtix gateway service account: %s\n' $inventory_sink_name
+
+# check if a pub/sub topic exists
+inventory_topic_id=$(gcloud pubsub topics list --format=json --filter=name:$inventory_topic_name | jq -r .[0].name)
+if [ "$inventory_topic_id" != "null" ]; then
+    printf 'Valtix inventory pub/sub topic already exists: %s\n' $inventory_topic_id
+else
+    printf 'Creating valtix inventory pub/sub topic: %s\n', $inventory_topic_name
+    gcloud pubsub topics create $inventory_topic_name
+    printf 'Created valtix inventory pub/sub topic: %s\n', $inventory_topic_name
+fi
+
+# check if a pub/sub subscription exists
+inventory_subscription_id=$(gcloud pubsub subscriptions list --format=json --filter=name:$inventory_subscription_name | jq -r .[0].name)
+if [ "$inventory_subscription_id" != "null" ]; then
+     printf 'Valtix inventory pub/sub subscription already exists: %s\n' $inventory_subscription_id
+else
+    printf 'Creating valtix inventory pub/sub subscription: %s\n', $inventory_subscription_name
+    gcloud pubsub subscriptions create $inventory_subscription_name \
+        --topic=$inventory_topic_name \
+        --push-endpoint=$webhook_endpoint
+    printf 'Created valtix inventory pub/sub subscription: %s\n', $inventory_subscription_name
+fi
+
+# check if a logging sink exists
+inventory_sink_id=$(gcloud logging sinks list --format=json --filter=name:$inventory_sink_name | jq -r .[0].name)
+if [ "$inventory_sink_id" != "null" ]; then
+     printf 'Valtix inventory logging sink already exists: %s\n' $inventory_sink_id
+else
+    printf 'Creating valtix inventory logging sink: %s\n', $inventory_sink_name
+    gcloud logging sinks create $inventory_sink_name \
+        pubsub.googleapis.com/projects/$project_id/topics/$inventory_topic_name \
+        --log-filter='resource.type=("gce_instance" OR "gce_network" OR "gce_subnetwork" OR "gce_forwarding_rule" OR "gce_target_pool" OR "gce_backend_service" OR "gce_target_http_proxy" OR "gce_target_https_proxy") logName="projects/'"$project_id"'/logs/cloudaudit.googleapis.com%2Factivity"'
+    printf 'Created valtix inventory logging sink: %s\n', $inventory_sink_name
+fi
+
+# grant pub/sub publisher role to the writer identity of logging sink on the topic
+inventory_sink_writer_identity=$(gcloud logging sinks --format=json describe $inventory_sink_name | jq -r .writerIdentity)
+if [ "$inventory_sink_writer_identity" == "null" ]; then
+    printf 'Valtix inventory logging sink does not have proper writer identity\n'
+    exists 1
+else
+    printf 'Granting publisher role to valtix inventory logging sink writer identity\n'
+    gcloud pubsub topics add-iam-policy-binding $inventory_topic_name \
+        --member=$inventory_sink_writer_identity \
+        --role=roles/pubsub.publisher
+fi
 
 printf "Downloading JSON key to %s_key.json..\n" $prefix
 gcloud iam service-accounts keys create ~/${prefix}_key.json \
@@ -119,6 +202,9 @@ cleanup_file=delete-gcp-setup.sh
 echo "Create uninstaller script in the current directory '$cleanup_file'"
 echo "gcloud iam service-accounts delete ${sa_valtix_gateway_email} --quiet" > $cleanup_file
 echo "gcloud iam service-accounts delete ${sa_valtix_controller_email} --quiet" >> $cleanup_file
+echo "gcloud logging sinks delete ${inventory_sink_name} --quiet" >> $cleanup_file
+echo "gcloud pubsub subscriptions delete ${inventory_subscription_name} --quiet" >> $cleanup_file
+echo "gcloud pubsub topics delete ${inventory_topic_name} --quiet" >> $cleanup_file
 echo "rm $cleanup_file" >> $cleanup_file
 chmod +x $cleanup_file
 
