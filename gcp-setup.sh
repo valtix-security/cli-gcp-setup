@@ -108,27 +108,32 @@ printf "Binding IAM roles to service accounts..\n"
 gcloud projects add-iam-policy-binding $project_id --member \
  serviceAccount:$sa_valtix_controller_email \
  --role "roles/compute.admin" \
+ --condition=None \
  --no-user-output-enabled --quiet
 
 gcloud projects add-iam-policy-binding $project_id --member \
  serviceAccount:$sa_valtix_controller_email \
  --role "roles/iam.serviceAccountUser" \
+ --condition=None \
  --no-user-output-enabled --quiet
 
- gcloud projects add-iam-policy-binding $project_id --member \
-    serviceAccount:$sa_valtix_controller_email \
-    --role "roles/pubsub.admin" \
-    --no-user-output-enabled --quiet
+gcloud projects add-iam-policy-binding $project_id --member \
+ serviceAccount:$sa_valtix_controller_email \
+ --role "roles/pubsub.admin" \
+ --condition=None \
+ --no-user-output-enabled --quiet
 
- gcloud projects add-iam-policy-binding $project_id --member \
-    serviceAccount:$sa_valtix_controller_email \
-    --role "roles/logging.admin" \
-    --no-user-output-enabled --quiet
+gcloud projects add-iam-policy-binding $project_id --member \
+ serviceAccount:$sa_valtix_controller_email \
+ --role "roles/logging.admin" \
+ --condition=None \
+ --no-user-output-enabled --quiet
 
 # This step is optional.  This is to allow Valtix Gateway service account access secrets from Secret Manager
 gcloud projects add-iam-policy-binding $project_id --member \
  serviceAccount:$sa_valtix_gateway_email \
  --role "roles/secretmanager.secretAccessor" \
+ --condition=None \
  --no-user-output-enabled --quiet
 
 # enabling real time inventory
