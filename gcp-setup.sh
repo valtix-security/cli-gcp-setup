@@ -136,6 +136,12 @@ gcloud projects add-iam-policy-binding $project_id --member \
  --condition=None \
  --no-user-output-enabled --quiet
 
+gcloud projects add-iam-policy-binding $project_id --member \
+ serviceAccount:$sa_valtix_gateway_email \
+ --role "roles/logging.logWriter" \
+ --condition=None \
+ --no-user-output-enabled --quiet
+
 # enabling real time inventory
 inventory_topic_name=${prefix}-inventory-topic
 inventory_subscription_name=${prefix}-inventory-subscription
