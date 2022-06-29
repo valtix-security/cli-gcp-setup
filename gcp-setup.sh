@@ -53,8 +53,8 @@ gcloud services enable logging.googleapis.com
 gcloud services enable secretmanager.googleapis.com
 
 project_id=$(gcloud config list --format 'value(core.project)')
-sa_controller_name=${prefix}-controller
-sa_gateway_name=${prefix}-gateway
+sa_controller_name="$prefix"-controller
+sa_gateway_name="$prefix"-gateway
 printf 'Setting up service accounts in project: %s\n' $project_id
 printf 'Valtix controller service account: %s\n' $sa_controller_name
 printf 'Valtix gateway service account: %s\n' $sa_gateway_name
