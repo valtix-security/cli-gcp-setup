@@ -48,7 +48,6 @@ gcloud services enable iam.googleapis.com
 gcloud services enable pubsub.googleapis.com
 gcloud services enable logging.googleapis.com
 
-
 #(optional): gcloud services enable secretmanager.googleapis.com
 gcloud services enable secretmanager.googleapis.com
 
