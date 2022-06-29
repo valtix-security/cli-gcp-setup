@@ -52,6 +52,7 @@ gcloud services enable logging.googleapis.com
 #(optional): gcloud services enable secretmanager.googleapis.com
 gcloud services enable secretmanager.googleapis.com
 
+echo $prefix
 project_id=$(gcloud config list --format 'value(core.project)')
 sa_controller_name="$prefix"-controller
 sa_gateway_name="$prefix"-gateway
