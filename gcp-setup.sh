@@ -30,12 +30,11 @@ while getopts "hp:w:" optname; do
     esac
 done
 
-test=$(gcloud projects list | grep -Po 'PROJECT_ID: \K.*')
+output=$(gcloud projects list --sort-by projectId --format 'value(projectId)')
+project=($output)
 printf "Select your project\n"
 num=0
-project=($test)
-for i in $test
-do
+for i in ${project[@]}; do
 	echo "($num) $i"
 	num=$(( $num + 1 ))
 done
@@ -59,10 +58,8 @@ printf 'Valtix controller service account: %s\n' $sa_controller_name
 printf 'Valtix gateway service account: %s\n' $sa_gateway_name
 
 # wait for confirmation
-read -p "Are you sure you want to go ahead? " -n 1 -r
-echo    # (optional) move to a new line
-if [[ ! $REPLY =~ ^[Yy]$ ]]
-then
+read -p "Are you sure you want to go ahead? [y/n] " -n 1 -r
+if [[ $REPLY != y ]]; then
     exit 1
 fi
 printf "Creating service accounts..\n"
