@@ -92,7 +92,7 @@ if [ "$dns_policy_id" != "null" ]; then
     printf 'Valtix dns policy already exist. Updating associated vpcs\n'
     gcloud dns policies update $dns_policy_name --enable-logging --networks=${vpcs// /}
 else
-    printf 'Creating valtix dns policy and associate it with given vpcs: %s\n', $dns_policy_name
+    printf 'Creating valtix dns policy and associating it with given vpcs: %s\n', $dns_policy_name
     gcloud dns policies create $dns_policy_name --enable-logging --networks=${vpcs// /} \
         --description="valtix dns policy for dns logs"
     printf 'Created valtix dns policy and associated with given vpcs: %s\n', $dns_policy_name
@@ -141,16 +141,15 @@ else
 fi
 
 
-# grant pub/sub publisher role to the writer identity of logging sink on the topic
+# grant objectCreator role to the writer identity of logging sink on the storage bucket
 traffic_log_sink_writer_identity=$(gcloud logging sinks --format=json describe $traffic_log_sink_name | jq -r .writerIdentity)
 if [ "$traffic_log_sink_writer_identity" == "null" ]; then
     printf 'Valtix traffic logging sink does not have proper writer identity\n'
     exists 1
 else
-    printf 'Granting publisher role to valtix traffic logging sink writer identity\n'
-    gcloud pubsub topics add-iam-policy-binding $traffic_log_topic_name \
-        --member=$traffic_log_sink_writer_identity \
-        --role=roles/pubsub.publisher
+    printf 'Granting objectCreator role to valtix traffic logging sink writer identity\n'
+    gsutil iam ch $traffic_log_sink_writer_identity:objectCreator \
+        gs://$storage_bucket
 fi
 
 # enable cloud storage notification to traffic log topic
