@@ -46,6 +46,7 @@ gcloud services enable compute.googleapis.com
 gcloud services enable iam.googleapis.com
 gcloud services enable pubsub.googleapis.com
 gcloud services enable logging.googleapis.com
+gcloud services enable dns.googleapis.com
 
 #(optional): gcloud services enable secretmanager.googleapis.com
 gcloud services enable secretmanager.googleapis.com
@@ -124,6 +125,11 @@ gcloud projects add-iam-policy-binding $project_id --member \
  --role "roles/logging.admin" \
  --condition=None \
  --no-user-output-enabled --quiet
+
+gcloud projects add-iam-policy-binding $project_id --member \
+    serviceAccount:$sa_valtix_controller_email \
+    --role "roles/storage.admin" \
+    --no-user-output-enabled --quiet
 
 # This step is optional.  This is to allow Valtix Gateway service account access secrets from Secret Manager
 gcloud projects add-iam-policy-binding $project_id --member \
@@ -215,4 +221,3 @@ echo "gcloud pubsub subscriptions delete ${inventory_subscription_name} --quiet"
 echo "gcloud pubsub topics delete ${inventory_topic_name} --quiet" >> $cleanup_file
 echo "rm $cleanup_file" >> $cleanup_file
 chmod +x $cleanup_file
-
