@@ -48,10 +48,11 @@ done
 printf 'Setting up traffic log in project: %s\n' $project_id
 gcloud config set project $project_id
 
-printf 'Enabling flow logs for vpcs %s' ${vpcs// /}
+printf 'Enabling flow logs for vpcs %s\n' ${vpcs// /}
 vpc_list=(${vpcs//,/ })
 for vpc in ${vpc_list[@]}; do
     #check which subnets do not have flow logs enabled
+    printf 'Collecting subnets without flow logs enabled in vpc %s\n' $vpc
     subnets=$(gcloud compute networks subnets list --network=$vpc --format=json)
 
     subnets_array=()
@@ -67,16 +68,18 @@ for vpc in ${vpc_list[@]}; do
         fi
     done
 
+    printf 'Found %d subnets without flow logs enabled in vpc %s, going to enable flow logs\n' ${#subnets_array[@]} $vpc
+    read -p "Do you want to continue? " -n 1 -r
+    echo    # (optional) move to a new line
+    if [[ ! $REPLY =~ ^[Yy]$ ]]
+    then
+        exit 1
+    fi
+
     for i in ${!subnets_array[@]}; do
         subnet=${subnets_array[$i]}
         region=${subnets_regions_array[$i]}
-        printf 'Going to enable vpc flow logs for subnet %s in region %s\n' $subnet $region
-        read -p "Do you want to continue? " -n 1 -r
-        echo    # (optional) move to a new line
-        if [[ ! $REPLY =~ ^[Yy]$ ]]
-        then
-            exit 1
-        fi
+        printf 'Enabling flow logs for subnet %s in region %s\n' $subnet $region
         
         gcloud compute networks subnets update $subnet \
             --enable-flow-logs --region=$region
@@ -114,7 +117,7 @@ else
     printf 'Creating valtix traffic log logging sink: %s\n', $traffic_log_sink_name
     gcloud logging sinks create $traffic_log_sink_name \
         storage.googleapis.com/$storage_bucket \
-        --log-filter='logName="projects/'"$project_id"'/logs/cloudaudit.googleapis.com%2Factivity" OR "projects/'"$project_id"'/logs/dns.googleapis.com%2Fdns_queries"'
+        --log-filter='logName="projects/'"$project_id"'/logs/compute.googleapis.com%2Fvpc_flows" OR "projects/'"$project_id"'/logs/dns.googleapis.com%2Fdns_queries"'
     printf 'Created valtix traffic log logging sink: %s\n', $traffic_log_sink_name
 fi
 
