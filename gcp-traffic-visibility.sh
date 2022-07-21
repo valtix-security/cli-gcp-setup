@@ -65,15 +65,19 @@ for vpc in ${vpc_list[@]}; do
         if [ "$flag" != "true" ]; then
             subnets_array+=(${name//\"/})
             subnets_regions_array+=(${region//\"/})
+            printf 'Flow logs not enabled for subnet %s in region %s\n' $name $region
         fi
     done
 
-    printf 'Found %d subnets without flow logs enabled in vpc %s, going to enable flow logs\n' ${#subnets_array[@]} $vpc
-    read -p "Do you want to continue? " -n 1 -r
-    echo    # (optional) move to a new line
-    if [[ ! $REPLY =~ ^[Yy]$ ]]
-    then
-        exit 1
+    if [ ${#subnets_array[@]} == 0 ]; then
+        printf 'All subnets of vpc %s have flow logs enabled. Continue...\n' $vpc
+    else
+        printf 'Found %d subnets without flow logs enabled in vpc %s, going to enable flow logs\n' ${#subnets_array[@]} $vpc
+        read -p "Do you want to continue? " -n 1 -r
+        echo    # (optional) move to a new line
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
     fi
 
     for i in ${!subnets_array[@]}; do
