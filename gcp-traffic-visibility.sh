@@ -161,7 +161,7 @@ fi
 
 # enable cloud storage notification to traffic log topic
 traffic_log_topic_id=$(gsutil notification list gs://$storage_bucket | grep $traffic_log_topic_name)
-if [ "$traffic_log_topic_id" != "null" ]; then
+if [ "$traffic_log_topic_id" != "" ]; then
     printf 'Storage bucket object change notification already sending to traffic log topic %s\n' $traffic_log_topic_name
 else
     printf 'Enabling storage bucket object change notification to be sent to traffic log topic %s\n' $traffic_log_topic_name

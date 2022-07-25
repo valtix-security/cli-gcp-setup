@@ -199,6 +199,16 @@ else
         --role=roles/pubsub.publisher
 fi
 
+# create a cloud storage bucket for traffic logs
+storage_bucket_name=${prefix}-log-bucket
+printf 'Creating cloud storage bucket for traffic logs: %s\n' $storage_bucket_name
+err_msg=$(gsutil du -s gs://$storage_bucket_name | grep 'BucketNotFoundException')
+if [ "$err_msg" == "" ]; then
+    printf 'cloud storage bucket already exists. Skipping...\n'
+else
+    gsutil mb gs://$storage_bucket_name
+fi
+
 printf "Downloading JSON key to %s_key.json..\n" $prefix
 gcloud iam service-accounts keys create ~/${prefix}_key.json \
   --iam-account $sa_valtix_controller_email
@@ -219,5 +229,6 @@ echo "gcloud iam service-accounts delete ${sa_valtix_controller_email} --quiet" 
 echo "gcloud logging sinks delete ${inventory_sink_name} --quiet" >> $cleanup_file
 echo "gcloud pubsub subscriptions delete ${inventory_subscription_name} --quiet" >> $cleanup_file
 echo "gcloud pubsub topics delete ${inventory_topic_name} --quiet" >> $cleanup_file
+echo "gsutil rm -r gs://${storage_bucket_name}" >> $cleanup_file
 echo "rm $cleanup_file" >> $cleanup_file
 chmod +x $cleanup_file
