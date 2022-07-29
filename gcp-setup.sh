@@ -154,8 +154,8 @@ printf 'Valtix inventory pub/sub subscription: %s\n' $inventory_subscription_nam
 printf 'Valtix inventory logging sink: %s\n' $inventory_sink_name
 
 # check if a pub/sub topic exists
-inventory_topic_id=$(gcloud pubsub topics list --format=json --filter=name:$inventory_topic_name | jq -r .[0].name)
-if [ "$inventory_topic_id" != "null" ]; then
+inventory_topic_id=$(gcloud pubsub topics describe $inventory_topic_name --format=json 2>/dev/null | jq -r .name)
+if [ "$inventory_topic_id" != "" ]; then
     printf 'Valtix inventory pub/sub topic already exist. Skipping\n'
 else
     printf 'Creating valtix inventory pub/sub topic: %s\n', $inventory_topic_name
@@ -164,8 +164,8 @@ else
 fi
 
 # check if a pub/sub subscription exists
-inventory_subscription_id=$(gcloud pubsub subscriptions list --format=json --filter=name:$inventory_subscription_name | jq -r .[0].name)
-if [ "$inventory_subscription_id" != "null" ]; then
+inventory_subscription_id=$(gcloud pubsub subscriptions describe $inventory_subscription_name --format=json 2>/dev/null | jq -r .name)
+if [ "$inventory_subscription_id" != "" ]; then
      printf 'Valtix inventory pub/sub subscription already exists. Skipping\n'
 else
     printf 'Creating valtix inventory pub/sub subscription: %s\n', $inventory_subscription_name
@@ -176,8 +176,8 @@ else
 fi
 
 # check if a logging sink exists
-inventory_sink_id=$(gcloud logging sinks list --format=json --filter=name:$inventory_sink_name | jq -r .[0].name)
-if [ "$inventory_sink_id" != "null" ]; then
+inventory_sink_id=$(gcloud logging sinks describe $inventory_sink_name --format=json 2>/dev/null | jq -r .name)
+if [ "$inventory_sink_id" != "" ]; then
      printf 'Valtix inventory logging sink already exists. Skipping\n'
 else
     printf 'Creating valtix inventory logging sink: %s\n', $inventory_sink_name
@@ -188,8 +188,8 @@ else
 fi
 
 # grant pub/sub publisher role to the writer identity of logging sink on the topic
-inventory_sink_writer_identity=$(gcloud logging sinks --format=json describe $inventory_sink_name | jq -r .writerIdentity)
-if [ "$inventory_sink_writer_identity" == "null" ]; then
+inventory_sink_writer_identity=$(gcloud logging sinks --format=json describe $inventory_sink_name 2>/dev/null | jq -r .writerIdentity)
+if [ "$inventory_sink_writer_identity" == "" ]; then
     printf 'Valtix inventory logging sink does not have proper writer identity\n'
     exists 1
 else
@@ -202,14 +202,14 @@ fi
 # create a cloud storage bucket for traffic logs
 storage_bucket_name=${prefix}-log-bucket
 printf 'Creating cloud storage bucket for traffic logs: %s\n' $storage_bucket_name
-err_msg=$(gsutil du -s gs://$storage_bucket_name | grep 'BucketNotFoundException')
-if [ "$err_msg" == "" ]; then
+err_msg=$(gsutil du -s gs://$storage_bucket_name 2>/dev/null | grep "$storage_bucket_name")
+if [ "$err_msg" != "" ]; then
     printf 'cloud storage bucket already exists. Skipping...\n'
 else
     gsutil mb gs://$storage_bucket_name
 fi
 
-printf "Downloading JSON key to %s_key.json..\n" $prefix
+printf "Downloading JSON key to %s_key.json...\n" $prefix
 gcloud iam service-accounts keys create ~/${prefix}_key.json \
   --iam-account $sa_valtix_controller_email
 

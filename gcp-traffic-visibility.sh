@@ -94,8 +94,9 @@ done
 # enable dns logs for given vpcs
 printf 'Enabling dns logs...\n'
 dns_policy_name=${prefix}-dns-policy
-dns_policy_id=$(gcloud dns policies list --format=json --filter=name:$dns_policy_name | jq -r .[0].id)
-if [ "$dns_policy_id" != "null" ]; then
+dns_policy_id=$(gcloud dns policies describe $dns_policy_name --format=json 2>/dev/null | jq -r .id)
+printf 'Got dns policy id: %s\n' $dns_policy_id
+if [ "$dns_policy_id" != "" ]; then
     printf 'Valtix dns policy already exist. Updating associated vpcs\n'
     gcloud dns policies update $dns_policy_name --enable-logging --networks=${vpcs// /}
 else
@@ -114,8 +115,8 @@ printf 'Valtix traffic log pub/sub subscription: %s\n' $traffic_log_subscription
 printf 'Valtix traffic log logging sink: %s\n' $traffic_log_sink_name
 
 # check if a logging sink exists
-traffic_log_sink_id=$(gcloud logging sinks list --format=json --filter=name:$traffic_log_sink_name | jq -r .[0].name)
-if [ "$traffic_log_sink_id" != "null" ]; then
+traffic_log_sink_id=$(gcloud logging sinks describe $traffic_log_sink_name --format=json 2>/dev/null | jq -r .name)
+if [ "$traffic_log_sink_id" != "" ]; then
      printf 'Valtix traffic log logging sink already exists. Skipping\n'
 else
     printf 'Creating valtix traffic log logging sink: %s\n', $traffic_log_sink_name
@@ -126,8 +127,8 @@ else
 fi
 
 # check if a pub/sub topic exists
-traffic_log_topic_id=$(gcloud pubsub topics list --format=json --filter=name:$traffic_log_topic_name | jq -r .[0].name)
-if [ "$traffic_log_topic_id" != "null" ]; then
+traffic_log_topic_id=$(gcloud pubsub topics describe $traffic_log_topic_name --format=json 2>/dev/null | jq -r .name)
+if [ "$traffic_log_topic_id" != "" ]; then
     printf 'Valtix traffic log pub/sub topic already exist. Skipping\n'
 else
     printf 'Creating valtix traffic log pub/sub topic: %s\n', $traffic_log_topic_name
@@ -136,8 +137,8 @@ else
 fi
 
 # check if a pub/sub subscription exists
-traffic_log_subscription_id=$(gcloud pubsub subscriptions list --format=json --filter=name:$traffic_log_subscription_name | jq -r .[0].name)
-if [ "$traffic_log_subscription_id" != "null" ]; then
+traffic_log_subscription_id=$(gcloud pubsub subscriptions describe $traffic_log_subscription_name --format=json 2>/dev/null | jq -r .name)
+if [ "$traffic_log_subscription_id" != "" ]; then
      printf 'Valtix traffic log pub/sub subscription already exists. Skipping\n'
 else
     printf 'Creating valtix traffic log pub/sub subscription: %s\n', $traffic_log_subscription_name
@@ -149,8 +150,8 @@ fi
 
 
 # grant objectCreator role to the writer identity of logging sink on the storage bucket
-traffic_log_sink_writer_identity=$(gcloud logging sinks --format=json describe $traffic_log_sink_name | jq -r .writerIdentity)
-if [ "$traffic_log_sink_writer_identity" == "null" ]; then
+traffic_log_sink_writer_identity=$(gcloud logging sinks --format=json describe $traffic_log_sink_name 2>/dev/null | jq -r .writerIdentity)
+if [ "$traffic_log_sink_writer_identity" == "" ]; then
     printf 'Valtix traffic logging sink does not have proper writer identity\n'
     exists 1
 else
@@ -169,3 +170,13 @@ else
 fi
 
 printf 'Flow logs and dns logs have been enabled for vpcs %s\n' ${vpcs// /}
+
+cleanup_file=delete-gcp-traffic-visibility.sh
+echo "Create uninstaller script in the current directory '$cleanup_file'"
+echo "gcloud dns policies update ${dns_policy_name} -networks= --quiet" >> $cleanup_file
+echo "gcloud dns policies delete ${dns_policy_name} --quiet" >> $cleanup_file
+echo "gcloud logging sinks delete ${traffic_log_sink_name} --quiet" >> $cleanup_file
+echo "gcloud pubsub subscriptions delete ${traffic_log_subscription_name} --quiet" >> $cleanup_file
+echo "gcloud pubsub topics delete ${traffic_log_topic_name} --quiet" >> $cleanup_file
+echo "rm $cleanup_file" >> $cleanup_file
+chmod +x $cleanup_file
