@@ -1,12 +1,22 @@
 #!/bin/bash
-# This script is provided by Valtix to create the two GCP Project service accounts needed to:
-#
-# 1. allow Valtix controller access to deploy services into the GCP Project
-# 2. allow Valtix gateway access to GCP Secret Manager (optional)
-#
+
+# Script used to configure/prepare the GCP project so the Valtix Controller can manage it
+# The executor of this script needs the following permissions/roles
+
+# Logging Admin
+# Pub/Sub Admin
+# Security Admin
+# Service Account Admin
+# Service Account Key Admin
+# Service Usage Admin
+# Storage Admin
+
+# Create 2 service accounts (for Valtix Controller and Valtix Gateway)
+# Create a pub/sub topic and subscription
+# Create storage bucket for the flow logs
+
 prefix=valtix
-webhook_endpoint=""
-####################################################################################
+webhook_endpoint=
 
 usage() {
     echo "Usage: $0 [args]"
