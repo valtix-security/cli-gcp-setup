@@ -32,43 +32,52 @@ done
 
 output=$(gcloud projects list --sort-by projectId --format 'value(projectId)')
 project=($output)
-printf "Select your project\n"
-num=0
+echo "Select your project"
+echo
+num=1
 for i in ${project[@]}; do
-	echo "($num) $i"
-	num=$(( $num + 1 ))
+	echo "[$num] $i"
+	num=$(expr $num + 1 )
 done
-num=$(($num-1))
-read -p "Enter number from 0 - $num.  " yn
-printf "You selected ${project[$yn]}\n"
+num=$(expr $num - 1)
+echo
+read -p "Enter number from 1 - $num:  " yn
+echo
+yn=$(expr $yn - 1)
+echo "You selected ${project[$yn]}"
+echo
+read -p "Continue configuring this project? [y/n] " -n 1 -r
+if [[ $REPLY != y ]]; then
+    exit 1
+fi
+echo
+echo
 gcloud config set project ${project[$yn]}
-gcloud services enable compute.googleapis.com
-gcloud services enable cloudresourcemanager.googleapis.com
-gcloud services enable iam.googleapis.com
-gcloud services enable pubsub.googleapis.com
-gcloud services enable logging.googleapis.com
-gcloud services enable dns.googleapis.com
-
-#(optional): gcloud services enable secretmanager.googleapis.com
-gcloud services enable secretmanager.googleapis.com
+echo "Enable API Services on the project"
+apis=(
+    compute.googleapis.com
+    cloudresourcemanager.googleapis.com
+    iam.googleapis.com
+    pubsub.googleapis.com
+    logging.googleapis.com
+    dns.googleapis.com
+    secretmanager.googleapis.com
+)
+for api in ${apis[@]}; do
+    echo "Enabe $api"
+    gcloud services enable $api
+done
 
 project_id=$(gcloud config list --format 'value(core.project)')
 sa_controller_name=${prefix}-controller
 sa_gateway_name=${prefix}-gateway
-printf 'Setting up service accounts in project: %s\n' $project_id
-printf 'Valtix controller service account: %s\n' $sa_controller_name
-printf 'Valtix gateway service account: %s\n' $sa_gateway_name
 
-# wait for confirmation
-read -p "Are you sure you want to go ahead? [y/n] " -n 1 -r
-if [[ $REPLY != y ]]; then
-    exit 1
-fi
-printf "Creating service accounts..\n"
+echo "Creating service accounts"
 
+echo "Creating Valtix Controller service account: $sa_controller_name"
 controller_result=$(gcloud iam service-accounts list --format=json --filter=name:$sa_controller_name | jq -r .[0].email)
 if [ "$controller_result" != "null" ]; then
-    printf 'Valtix controller service account already exists. Skipping\n'
+    echo "Valtix Controller service account already exists, Skipping"
 else
     gcloud iam service-accounts create $sa_controller_name \
         --description="service account used by Valtix to create resources in the project" \
@@ -76,9 +85,10 @@ else
         --no-user-output-enabled --quiet
 fi
 
+echo "Creating Valtix Gateway service account: $sa_gateway_name"
 gateway_result=$(gcloud iam service-accounts list --format=json --filter=name:$sa_gateway_name | jq -r .[0].email)
 if [ "$gateway_result" != "null" ]; then
-    printf 'Valtix gateway service account already exists. Skipping\n'
+    echo "Valtix Gateway service account already exists, Skipping"
 else
     gcloud iam service-accounts create $sa_gateway_name \
         --description="service account used by Valtix gateway to access GCP Secrets" \
@@ -88,7 +98,7 @@ fi
 
 # wait for the service accounts to be created
 while true; do
-    printf "Wait until service accounts are created..\n"
+    echo "Wait until service accounts are created.."
     controller_result=$(gcloud iam service-accounts list --format=json --filter=name:$sa_controller_name | jq -r .[0].email)
     gateway_result=$(gcloud iam service-accounts list --format=json --filter=name:$sa_gateway_name | jq -r .[0].email)
     if [ "$controller_result" == "null" ] || [ "$gateway_result" == "null" ]; then
@@ -97,104 +107,89 @@ while true; do
         break
     fi
 done
+
 sa_valtix_controller_email=$controller_result
 sa_valtix_gateway_email=$gateway_result
 
-printf 'Created valtix controller service account: %s\n' $sa_valtix_controller_email
-printf 'Created valtix gateway service account: %s\n' $sa_valtix_gateway_email
-printf "Binding IAM roles to service accounts..\n"
-gcloud projects add-iam-policy-binding $project_id --member \
- serviceAccount:$sa_valtix_controller_email \
- --role "roles/compute.admin" \
- --condition=None \
- --no-user-output-enabled --quiet
+echo
+echo "Adding roles to the Valtix Controller service account: $sa_valtix_controller_email"
+controller_roles=(
+    "roles/compute.admin"
+    "roles/iam.serviceAccountUser"
+    "roles/pubsub.admin"
+    "roles/logging.admin"
+    "roles/storage.admin"
+)
+for role in ${controller_roles[@]}; do
+    echo "Add \"$role\""
+    gcloud projects add-iam-policy-binding $project_id \
+        --member serviceAccount:$sa_valtix_controller_email \
+        --role "$role" \
+        --condition=None \
+        --no-user-output-enabled --quiet
+done
 
-gcloud projects add-iam-policy-binding $project_id --member \
- serviceAccount:$sa_valtix_controller_email \
- --role "roles/iam.serviceAccountUser" \
- --condition=None \
- --no-user-output-enabled --quiet
+echo
+echo "Adding roles to the Valtix Gateway service account: $sa_valtix_gateway_email"
+gw_roles=(
+    "roles/secretmanager.secretAccessor"
+    "roles/logging.logWriter"
+)
 
-gcloud projects add-iam-policy-binding $project_id --member \
- serviceAccount:$sa_valtix_controller_email \
- --role "roles/pubsub.admin" \
- --condition=None \
- --no-user-output-enabled --quiet
-
-gcloud projects add-iam-policy-binding $project_id --member \
- serviceAccount:$sa_valtix_controller_email \
- --role "roles/logging.admin" \
- --condition=None \
- --no-user-output-enabled --quiet
-
-gcloud projects add-iam-policy-binding $project_id --member \
-    serviceAccount:$sa_valtix_controller_email \
-    --role "roles/storage.admin" \
-    --no-user-output-enabled --quiet
-
-# This step is optional.  This is to allow Valtix Gateway service account access secrets from Secret Manager
-gcloud projects add-iam-policy-binding $project_id --member \
- serviceAccount:$sa_valtix_gateway_email \
- --role "roles/secretmanager.secretAccessor" \
- --condition=None \
- --no-user-output-enabled --quiet
-
-gcloud projects add-iam-policy-binding $project_id --member \
- serviceAccount:$sa_valtix_gateway_email \
- --role "roles/logging.logWriter" \
- --condition=None \
- --no-user-output-enabled --quiet
+for role in ${gw_roles[@]}; do
+    echo "Add \"$role\""
+    gcloud projects add-iam-policy-binding $project_id \
+        --member serviceAccount:$sa_valtix_gateway_email \
+        --role "$role" \
+        --condition=None \
+        --no-user-output-enabled --quiet
+done
 
 # enabling real time inventory
 inventory_topic_name=${prefix}-inventory-topic
 inventory_subscription_name=${prefix}-inventory-subscription
 inventory_sink_name=${prefix}-inventory-sink
-printf 'Setting up real time inventory in project: %s\n' $project_id
-printf 'Valtix inventory pub/sub topic: %s\n' $inventory_topic_name
-printf 'Valtix inventory pub/sub subscription: %s\n' $inventory_subscription_name
-printf 'Valtix inventory logging sink: %s\n' $inventory_sink_name
+
+echo
+echo "Setting up real time inventory in project: $project_id"
 
 # check if a pub/sub topic exists
+echo "Creating Valtix inventory pub/sub topic: $inventory_topic_name"
 inventory_topic_id=$(gcloud pubsub topics describe $inventory_topic_name --format=json 2>/dev/null | jq -r .name)
 if [ "$inventory_topic_id" != "" ]; then
-    printf 'Valtix inventory pub/sub topic already exist. Skipping\n'
+    echo "Valtix inventory pub/sub topic already exists, Skipping"
 else
-    printf 'Creating valtix inventory pub/sub topic: %s\n', $inventory_topic_name
     gcloud pubsub topics create $inventory_topic_name
-    printf 'Created valtix inventory pub/sub topic: %s\n', $inventory_topic_name
 fi
 
 # check if a pub/sub subscription exists
+echo "Creating Valtix inventory pub/sub subscription: $inventory_subscription_name"
 inventory_subscription_id=$(gcloud pubsub subscriptions describe $inventory_subscription_name --format=json 2>/dev/null | jq -r .name)
 if [ "$inventory_subscription_id" != "" ]; then
-     printf 'Valtix inventory pub/sub subscription already exists. Skipping\n'
+     echo "Valtix inventory pub/sub subscription already exists, Skipping"
 else
-    printf 'Creating valtix inventory pub/sub subscription: %s\n', $inventory_subscription_name
     gcloud pubsub subscriptions create $inventory_subscription_name \
         --topic=$inventory_topic_name \
         --push-endpoint=$webhook_endpoint
-    printf 'Created valtix inventory pub/sub subscription: %s\n', $inventory_subscription_name
 fi
 
 # check if a logging sink exists
+echo "Creating Valtix inventory logging sink: $inventory_sink_name"
 inventory_sink_id=$(gcloud logging sinks describe $inventory_sink_name --format=json 2>/dev/null | jq -r .name)
 if [ "$inventory_sink_id" != "" ]; then
-     printf 'Valtix inventory logging sink already exists. Skipping\n'
+     echo "Valtix inventory logging sink already exists, Skipping"
 else
-    printf 'Creating valtix inventory logging sink: %s\n', $inventory_sink_name
     gcloud logging sinks create $inventory_sink_name \
         pubsub.googleapis.com/projects/$project_id/topics/$inventory_topic_name \
         --log-filter='resource.type=("gce_instance" OR "gce_network" OR "gce_subnetwork" OR "gce_forwarding_rule" OR "gce_target_pool" OR "gce_backend_service" OR "gce_target_http_proxy" OR "gce_target_https_proxy") logName="projects/'"$project_id"'/logs/cloudaudit.googleapis.com%2Factivity"'
-    printf 'Created valtix inventory logging sink: %s\n', $inventory_sink_name
 fi
 
 # grant pub/sub publisher role to the writer identity of logging sink on the topic
 inventory_sink_writer_identity=$(gcloud logging sinks --format=json describe $inventory_sink_name 2>/dev/null | jq -r .writerIdentity)
 if [ "$inventory_sink_writer_identity" == "" ]; then
-    printf 'Valtix inventory logging sink does not have proper writer identity\n'
-    exists 1
+    echo "Valtix inventory logging sink does not have proper writer identity"
 else
-    printf 'Granting publisher role to valtix inventory logging sink writer identity\n'
+    echo "Granting publisher role to $inventory_sink_writer_identity"
     gcloud pubsub topics add-iam-policy-binding $inventory_topic_name \
         --member=$inventory_sink_writer_identity \
         --role=roles/pubsub.publisher
@@ -202,26 +197,25 @@ fi
 
 # create a cloud storage bucket for traffic logs
 storage_bucket_name=${prefix}-log-bucket
-printf 'Creating cloud storage bucket for traffic logs: %s\n' $storage_bucket_name
+echo "Creating cloud storage bucket for traffic logs: $storage_bucket_name"
 err_msg=$(gsutil du -s gs://$storage_bucket_name 2>/dev/null | grep "$storage_bucket_name")
 if [ "$err_msg" != "" ]; then
-    printf 'cloud storage bucket already exists. Skipping...\n'
+    echo "Cloud Storage Bucket already exists, Skipping"
 else
     gsutil mb gs://$storage_bucket_name
 fi
 
-printf "Downloading JSON key to %s_key.json...\n" $prefix
+echo "Create JSON key for the Valtix Controller Service Account and downloading to ${prefix}_key.json"
 gcloud iam service-accounts keys create ~/${prefix}_key.json \
   --iam-account $sa_valtix_controller_email
 
 private_key=$(cat ~/${prefix}_key.json | jq -r .private_key)
-printf "#############################################################################\n"
-printf "##Below information will be needed to onboard project to Valtix Controller\n"
-printf "#############################################################################\n"
-printf "Project ID: ${project_id}\n"
-printf "Client Email: ${sa_valtix_controller_email}\n"
-printf "Private Key: \n${private_key}\n"
-printf "#############################################################################\n"
+echo "-----------------------------------------------------------------------"
+echo "# Information required to onboard this project to the Valtix Controller"
+echo "-----------------------------------------------------------------------"
+echo "Project ID: ${project_id}"
+echo "Client Email: ${sa_valtix_controller_email}"
+echo "Private Key: ${private_key}"
 
 cleanup_file=delete-gcp-setup.sh
 echo "Create uninstaller script in the current directory '$cleanup_file'"
