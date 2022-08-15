@@ -43,6 +43,7 @@ read -p "Enter number from 0 - $num.  " yn
 printf "You selected ${project[$yn]}\n"
 gcloud config set project ${project[$yn]}
 gcloud services enable compute.googleapis.com
+gcloud services enable cloudresourcemanager.googleapis.com
 gcloud services enable iam.googleapis.com
 gcloud services enable pubsub.googleapis.com
 gcloud services enable logging.googleapis.com
