@@ -3,15 +3,15 @@
 # Script used to configure/prepare the GCP project so the Valtix Controller can manage it
 # The executor of this script needs the following permissions/roles
 
-# Logging Admin
-# Pub/Sub Admin
-# Security Admin
-# Service Account Admin
-# Service Account Key Admin
-# Service Usage Admin
-# Storage Admin
-# Compute Admin
-# DNS Administrator
+# Logging Admin - roles/loggingg.admin
+# Pub/Sub Admin - roles/pubsub.admin
+# Security Admin - roles/iam.securityAdmin
+# Service Account Admin - roles/iam.serviceAccountAdmin
+# Service Account Key Admin - roles/iam.serviceAccountKeyAdmin
+# Service Usage Admin - roles/serviceusage.serviceUsageAdmin
+# Storage Admin - roles/storage.admin
+# Compute Admin - roles/compute.admin
+# DNS Administrator - roles/dns.admin
 
 # Create 2 service accounts (for Valtix Controller and Valtix Gateway)
 # Create a pub/sub topic and subscription
