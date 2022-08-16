@@ -10,6 +10,8 @@
 # Service Account Key Admin
 # Service Usage Admin
 # Storage Admin
+# Compute Admin
+# DNS Administrator
 
 # Create 2 service accounts (for Valtix Controller and Valtix Gateway)
 # Create a pub/sub topic and subscription
