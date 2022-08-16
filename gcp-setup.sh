@@ -66,7 +66,6 @@ gcloud config set project ${project[$yn]}
 echo "Enable API Services on the project"
 apis=(
     compute.googleapis.com
-    cloudresourcemanager.googleapis.com
     iam.googleapis.com
     pubsub.googleapis.com
     logging.googleapis.com
@@ -74,7 +73,7 @@ apis=(
     secretmanager.googleapis.com
 )
 for api in ${apis[@]}; do
-    echo "Enabe $api"
+    echo "Enable $api"
     gcloud services enable $api
 done
 
@@ -226,6 +225,7 @@ echo "-----------------------------------------------------------------------"
 echo "Project ID: ${project_id}"
 echo "Client Email: ${sa_valtix_controller_email}"
 echo "Private Key: ${private_key}"
+echo "Storage Bucket: $storage_bucket_name"
 
 cleanup_file=delete-gcp-setup.sh
 echo "Create uninstaller script in the current directory '$cleanup_file'"
