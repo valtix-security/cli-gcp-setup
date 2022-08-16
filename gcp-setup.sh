@@ -228,8 +228,23 @@ echo "Private Key: ${private_key}"
 echo "Storage Bucket: $storage_bucket_name"
 
 cleanup_file=delete-gcp-setup.sh
+echo > $cleanup_file
 echo "Create uninstaller script in the current directory '$cleanup_file'"
-echo "gcloud iam service-accounts delete ${sa_valtix_gateway_email} --quiet" > $cleanup_file
+for role in ${controller_roles[@]}; do
+    echo gcloud projects remove-iam-policy-binding $project_id \
+        --member serviceAccount:$sa_valtix_controller_email \
+        --role "$role" \
+        --condition=None \
+        --no-user-output-enabled --quiet >> $cleanup_file
+done
+for role in ${gw_roles[@]}; do
+    echo gcloud projects remove-iam-policy-binding $project_id \
+        --member serviceAccount:$sa_valtix_gateway_email \
+        --role "$role" \
+        --condition=None \
+        --no-user-output-enabled --quiet >> $cleanup_file
+done
+echo "gcloud iam service-accounts delete ${sa_valtix_gateway_email} --quiet" >> $cleanup_file
 echo "gcloud iam service-accounts delete ${sa_valtix_controller_email} --quiet" >> $cleanup_file
 echo "gcloud logging sinks delete ${inventory_sink_name} --quiet" >> $cleanup_file
 echo "gcloud pubsub subscriptions delete ${inventory_subscription_name} --quiet" >> $cleanup_file
