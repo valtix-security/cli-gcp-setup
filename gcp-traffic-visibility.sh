@@ -3,7 +3,7 @@
 # enable both flow logs and dns logs for the vpc list you provide.
 #
 
-prefix=mcd
+prefix=ciscomcd
 project_id=""
 storage_bucket=""
 vpcs=""
@@ -15,7 +15,7 @@ usage() {
     echo "Usage: $0 [args]"
     echo "-h This help message"
     echo "-i <project_id> - ID of the project you want to enable traffic visibility for"
-    echo "-p <prefix> - Prefix to use for the traffic visibility related resources, defaults to mcd"
+    echo "-p <prefix> - Prefix to use for the traffic visibility related resources, defaults to ciscomcd"
     echo "-s <storage_bucket> - Name of the storage bucket used to store flow logs and dns logs"
     echo "-v <vpcs> - Comma separate list of vpc names you want to enable traffic visibility for"
     echo "-w <webhook_endpoint> - Cisco Multicloud Defense Webhook Endpoint, used for traffic visibility"
