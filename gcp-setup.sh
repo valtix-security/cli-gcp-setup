@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script used to configure/prepare the GCP project so the Valtix Controller can manage it
+# Script used to configure/prepare the GCP project so the Multicloud Defense Controller can manage it
 # The executor of this script needs the following permissions/roles
 
 # Logging Admin - roles/loggingg.admin
@@ -13,17 +13,17 @@
 # Compute Admin - roles/compute.admin
 # DNS Administrator - roles/dns.admin
 
-# Create 2 service accounts (for Valtix Controller and Valtix Gateway)
+# Create 2 service accounts (for Multicloud Defense Controller and Multicloud Defense Gateway)
 # Create a pub/sub topic and subscription
 # Create storage bucket for the flow logs
 
-prefix=valtix
+prefix=ciscomcd
 webhook_endpoint=
 
 usage() {
     echo "Usage: $0 [args]"
     echo "-h This help message"
-    echo "-p <prefix> - Prefix to use for the Service Accounts, defaults to valtix"
+    echo "-p <prefix> - Prefix to use for the Service Accounts, defaults to ciscomcd"
     echo "-w <webhook_endpoint> - Your Webhook Endpoint, used for real time inventory"
     exit 1
 }
@@ -85,24 +85,24 @@ sa_gateway_name=${prefix}-gateway
 
 echo "Creating service accounts"
 
-echo "Creating Valtix Controller service account: $sa_controller_name"
+echo "Creating Multicloud Defense Controller service account: $sa_controller_name"
 controller_result=$(gcloud iam service-accounts list --format=json --filter=name:$sa_controller_name | jq -r .[0].email)
 if [ "$controller_result" != "null" ]; then
-    echo "Valtix Controller service account already exists, Skipping"
+    echo "Multicloud Defense Controller service account already exists, Skipping"
 else
     gcloud iam service-accounts create $sa_controller_name \
-        --description="service account used by Valtix to create resources in the project" \
+        --description="service account used by Multicloud Defense to create resources in the project" \
         --display-name=$sa_controller_name \
         --no-user-output-enabled --quiet
 fi
 
-echo "Creating Valtix Gateway service account: $sa_gateway_name"
+echo "Creating Multicloud Defense Gateway service account: $sa_gateway_name"
 gateway_result=$(gcloud iam service-accounts list --format=json --filter=name:$sa_gateway_name | jq -r .[0].email)
 if [ "$gateway_result" != "null" ]; then
-    echo "Valtix Gateway service account already exists, Skipping"
+    echo "Multicloud Defense Gateway service account already exists, Skipping"
 else
     gcloud iam service-accounts create $sa_gateway_name \
-        --description="service account used by Valtix gateway to access GCP Secrets" \
+        --description="service account used by Multicloud Defense gateway to access GCP Secrets" \
         --display-name=$sa_gateway_name \
         --no-user-output-enabled --quiet
 fi
@@ -119,11 +119,11 @@ while true; do
     fi
 done
 
-sa_valtix_controller_email=$controller_result
-sa_valtix_gateway_email=$gateway_result
+sa_ciscomcd_controller_email=$controller_result
+sa_ciscomcd_gateway_email=$gateway_result
 
 echo
-echo "Adding roles to the Valtix Controller service account: $sa_valtix_controller_email"
+echo "Adding roles to the Multicloud Defense Controller service account: $sa_ciscomcd_controller_email"
 controller_roles=(
     "roles/compute.admin"
     "roles/iam.serviceAccountUser"
@@ -134,14 +134,14 @@ controller_roles=(
 for role in ${controller_roles[@]}; do
     echo "Add \"$role\""
     gcloud projects add-iam-policy-binding $project_id \
-        --member serviceAccount:$sa_valtix_controller_email \
+        --member serviceAccount:$sa_ciscomcd_controller_email \
         --role "$role" \
         --condition=None \
         --no-user-output-enabled --quiet
 done
 
 echo
-echo "Adding roles to the Valtix Gateway service account: $sa_valtix_gateway_email"
+echo "Adding roles to the Multicloud Defense Gateway service account: $sa_ciscomcd_gateway_email"
 gw_roles=(
     "roles/secretmanager.secretAccessor"
     "roles/logging.logWriter"
@@ -150,7 +150,7 @@ gw_roles=(
 for role in ${gw_roles[@]}; do
     echo "Add \"$role\""
     gcloud projects add-iam-policy-binding $project_id \
-        --member serviceAccount:$sa_valtix_gateway_email \
+        --member serviceAccount:$sa_ciscomcd_gateway_email \
         --role "$role" \
         --condition=None \
         --no-user-output-enabled --quiet
@@ -165,19 +165,19 @@ echo
 echo "Setting up real time inventory in project: $project_id"
 
 # check if a pub/sub topic exists
-echo "Creating Valtix inventory pub/sub topic: $inventory_topic_name"
+echo "Creating Multicloud Defense inventory pub/sub topic: $inventory_topic_name"
 inventory_topic_id=$(gcloud pubsub topics describe $inventory_topic_name --format=json 2>/dev/null | jq -r .name)
 if [ "$inventory_topic_id" != "" ]; then
-    echo "Valtix inventory pub/sub topic already exists, Skipping"
+    echo "Multicloud Defense inventory pub/sub topic already exists, Skipping"
 else
     gcloud pubsub topics create $inventory_topic_name
 fi
 
 # check if a pub/sub subscription exists
-echo "Creating Valtix inventory pub/sub subscription: $inventory_subscription_name"
+echo "Creating Multicloud Defense inventory pub/sub subscription: $inventory_subscription_name"
 inventory_subscription_id=$(gcloud pubsub subscriptions describe $inventory_subscription_name --format=json 2>/dev/null | jq -r .name)
 if [ "$inventory_subscription_id" != "" ]; then
-     echo "Valtix inventory pub/sub subscription already exists, Skipping"
+     echo "Multicloud Defense inventory pub/sub subscription already exists, Skipping"
 else
     gcloud pubsub subscriptions create $inventory_subscription_name \
         --topic=$inventory_topic_name \
@@ -185,10 +185,10 @@ else
 fi
 
 # check if a logging sink exists
-echo "Creating Valtix inventory logging sink: $inventory_sink_name"
+echo "Creating Multicloud Defense inventory logging sink: $inventory_sink_name"
 inventory_sink_id=$(gcloud logging sinks describe $inventory_sink_name --format=json 2>/dev/null | jq -r .name)
 if [ "$inventory_sink_id" != "" ]; then
-     echo "Valtix inventory logging sink already exists, Skipping"
+     echo "Multicloud Defense inventory logging sink already exists, Skipping"
 else
     gcloud logging sinks create $inventory_sink_name \
         pubsub.googleapis.com/projects/$project_id/topics/$inventory_topic_name \
@@ -198,7 +198,7 @@ fi
 # grant pub/sub publisher role to the writer identity of logging sink on the topic
 inventory_sink_writer_identity=$(gcloud logging sinks --format=json describe $inventory_sink_name 2>/dev/null | jq -r .writerIdentity)
 if [ "$inventory_sink_writer_identity" == "" ]; then
-    echo "Valtix inventory logging sink does not have proper writer identity"
+    echo "Multicloud Defense inventory logging sink does not have proper writer identity"
 else
     echo "Granting publisher role to $inventory_sink_writer_identity"
     gcloud pubsub topics add-iam-policy-binding $inventory_topic_name \
@@ -216,16 +216,16 @@ else
     gsutil mb gs://$storage_bucket_name
 fi
 
-echo "Create JSON key for the Valtix Controller Service Account and downloading to ${prefix}_key.json"
+echo "Create JSON key for the Multicloud Defense Controller Service Account and downloading to ${prefix}_key.json"
 gcloud iam service-accounts keys create ~/${prefix}_key.json \
-  --iam-account $sa_valtix_controller_email
+  --iam-account $sa_ciscomcd_controller_email
 
 private_key=$(cat ~/${prefix}_key.json | jq -r .private_key)
-echo "-----------------------------------------------------------------------"
-echo "# Information required to onboard this project to the Valtix Controller"
-echo "-----------------------------------------------------------------------"
+echo "-----------------------------------------------------------------------------------"
+echo "# Information required to onboard this project to the Multicloud Defense Controller"
+echo "-----------------------------------------------------------------------------------"
 echo "Project ID: ${project_id}"
-echo "Client Email: ${sa_valtix_controller_email}"
+echo "Client Email: ${sa_ciscomcd_controller_email}"
 echo "Private Key: ${private_key}"
 echo "Storage Bucket: $storage_bucket_name"
 
@@ -234,20 +234,20 @@ echo > $cleanup_file
 echo "Create uninstaller script in the current directory '$cleanup_file'"
 for role in ${controller_roles[@]}; do
     echo gcloud projects remove-iam-policy-binding $project_id \
-        --member serviceAccount:$sa_valtix_controller_email \
+        --member serviceAccount:$sa_ciscomcd_controller_email \
         --role "$role" \
         --condition=None \
         --no-user-output-enabled --quiet >> $cleanup_file
 done
 for role in ${gw_roles[@]}; do
     echo gcloud projects remove-iam-policy-binding $project_id \
-        --member serviceAccount:$sa_valtix_gateway_email \
+        --member serviceAccount:$sa_ciscomcd_gateway_email \
         --role "$role" \
         --condition=None \
         --no-user-output-enabled --quiet >> $cleanup_file
 done
-echo "gcloud iam service-accounts delete ${sa_valtix_gateway_email} --quiet" >> $cleanup_file
-echo "gcloud iam service-accounts delete ${sa_valtix_controller_email} --quiet" >> $cleanup_file
+echo "gcloud iam service-accounts delete ${sa_ciscomcd_gateway_email} --quiet" >> $cleanup_file
+echo "gcloud iam service-accounts delete ${sa_ciscomcd_controller_email} --quiet" >> $cleanup_file
 echo "gcloud logging sinks delete ${inventory_sink_name} --quiet" >> $cleanup_file
 echo "gcloud pubsub subscriptions delete ${inventory_subscription_name} --quiet" >> $cleanup_file
 echo "gcloud pubsub topics delete ${inventory_topic_name} --quiet" >> $cleanup_file

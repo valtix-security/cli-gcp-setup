@@ -1,9 +1,9 @@
 #!/bin/bash
-# This script is provided by Valtix to enable traffic visibility for your GCP project. It will
+# This script is provided by Cisco Multicloud Defense to enable traffic visibility for your GCP project. It will
 # enable both flow logs and dns logs for the vpc list you provide.
 #
 
-prefix=valtix
+prefix=ciscomcd
 project_id=""
 storage_bucket=""
 vpcs=""
@@ -15,10 +15,10 @@ usage() {
     echo "Usage: $0 [args]"
     echo "-h This help message"
     echo "-i <project_id> - ID of the project you want to enable traffic visibility for"
-    echo "-p <prefix> - Prefix to use for the traffic visibility related resources, defaults to valtix"
+    echo "-p <prefix> - Prefix to use for the traffic visibility related resources, defaults to ciscomcd"
     echo "-s <storage_bucket> - Name of the storage bucket used to store flow logs and dns logs"
     echo "-v <vpcs> - Comma separate list of vpc names you want to enable traffic visibility for"
-    echo "-w <webhook_endpoint> - Valtix Webhook Endpoint, used for traffic visibility"
+    echo "-w <webhook_endpoint> - Cisco Multicloud Defense Webhook Endpoint, used for traffic visibility"
     exit 1
 }
 
@@ -85,24 +85,24 @@ for vpc in ${vpc_list[@]}; do
 done
 
 dns_policy_name=${prefix}-dns-policy
-echo "Creating Valtix DNS policy '$dns_policy_name' and associating it with given vpcs"
+echo "Creating Cisco Multicloud Defense DNS policy '$dns_policy_name' and associating it with given vpcs"
 dns_policy_id=$(gcloud dns policies describe $dns_policy_name --format=json 2>/dev/null | jq -r .id)
 if [ "$dns_policy_id" != "" ]; then
-    echo "Valtix dns policy already exists. Updating associated vpcs"
+    echo "Cisco Multicloud Defense DNS policy already exists. Updating associated vpcs"
     gcloud dns policies update $dns_policy_name --enable-logging --networks=${vpcs// /}
 else
     gcloud dns policies create $dns_policy_name --enable-logging --networks=${vpcs// /} \
-        --description="valtix dns policy for dns logs"
+        --description="Cisco Multicloud Defense dns policy for dns logs"
 fi
 
 traffic_log_sink_name=${prefix}-traffic-log-sink
 traffic_log_topic_name=${prefix}-traffic-log-topic
 traffic_log_subscription_name=${prefix}-traffic-log-subscription
 
-echo "Creating Valtix traffic log logging sink: $traffic_log_sink_name"
+echo "Creating Cisco Multicloud Defense traffic log logging sink: $traffic_log_sink_name"
 traffic_log_sink_id=$(gcloud logging sinks describe $traffic_log_sink_name --format=json 2>/dev/null | jq -r .name)
 if [ "$traffic_log_sink_id" != "" ]; then
-     echo "Valtix traffic log logging sink already exists, Skipping"
+     echo "Cisco Multicloud Defense traffic log logging sink already exists, Skipping"
 else
     gcloud logging sinks create $traffic_log_sink_name \
         storage.googleapis.com/$storage_bucket \
@@ -116,18 +116,18 @@ gsutil iam ch $traffic_log_sink_writer_identity:objectCreator \
     gs://$storage_bucket
 
 # check if a pub/sub topic exists
-echo "Creating Valtix traffic log pub/sub topic: $traffic_log_topic_name"
+echo "Creating Cisco Multicloud Defense traffic log pub/sub topic: $traffic_log_topic_name"
 traffic_log_topic_id=$(gcloud pubsub topics describe $traffic_log_topic_name --format=json 2>/dev/null | jq -r .name)
 if [ "$traffic_log_topic_id" != "" ]; then
-    echo "Valtix traffic log pub/sub topic already exists, Skipping"
+    echo "Cisco Multicloud Defense traffic log pub/sub topic already exists, Skipping"
 else
     gcloud pubsub topics create $traffic_log_topic_name
 fi
 
-echo "Creating Valtix traffic log pub/sub subscription: $traffic_log_subscription_name"
+echo "Creating Cisco Multicloud Defense traffic log pub/sub subscription: $traffic_log_subscription_name"
 traffic_log_subscription_id=$(gcloud pubsub subscriptions describe $traffic_log_subscription_name --format=json 2>/dev/null | jq -r .name)
 if [ "$traffic_log_subscription_id" != "" ]; then
-     echo "Valtix traffic log pub/sub subscription already exists, Skipping"
+     echo "Cisco Multicloud Defense traffic log pub/sub subscription already exists, Skipping"
 else
     gcloud pubsub subscriptions create $traffic_log_subscription_name \
         --topic=$traffic_log_topic_name \
