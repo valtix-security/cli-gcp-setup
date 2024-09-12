@@ -258,4 +258,3 @@ echo "gcloud pubsub subscriptions delete ${inventory_subscription_name} --quiet"
 echo "gcloud pubsub topics delete ${inventory_topic_name} --quiet" >> $cleanup_file
 echo "gsutil rm -r gs://${storage_bucket_name}" >> $cleanup_file
 echo "rm $cleanup_file" >> $cleanup_file
-chmod +x $cleanup_file
