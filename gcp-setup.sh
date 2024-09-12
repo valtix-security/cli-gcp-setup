@@ -3,7 +3,7 @@
 # Script used to configure/prepare the GCP project so the Multicloud Defense Controller can manage it
 # The executor of this script needs the following permissions/roles
 
-# Logging Admin - roles/loggingg.admin
+# Logging Admin - roles/logging.admin
 # Pub/Sub Admin - roles/pubsub.admin
 # Security Admin - roles/iam.securityAdmin
 # Service Account Admin - roles/iam.serviceAccountAdmin
@@ -12,6 +12,7 @@
 # Storage Admin - roles/storage.admin
 # Compute Admin - roles/compute.admin
 # DNS Administrator - roles/dns.admin
+# Service Account Token Creator  - roles/iam.serviceAccountTokenCreator
 
 # Create 2 service accounts (for Multicloud Defense Controller and Multicloud Defense Gateway)
 # Create a pub/sub topic and subscription
@@ -65,6 +66,8 @@ fi
 echo
 echo
 gcloud config set project ${project[$yn]}
+
+# Enable API Services on the project
 echo "Enable API Services on the project"
 apis=(
     compute.googleapis.com
@@ -130,6 +133,7 @@ controller_roles=(
     "roles/pubsub.admin"
     "roles/logging.admin"
     "roles/storage.admin"
+    "roles/iam.serviceAccountTokenCreator"
 )
 for role in ${controller_roles[@]}; do
     echo "Add \"$role\""
@@ -181,7 +185,8 @@ if [ "$inventory_subscription_id" != "" ]; then
 else
     gcloud pubsub subscriptions create $inventory_subscription_name \
         --topic=$inventory_topic_name \
-        --push-endpoint=$webhook_endpoint
+        --push-endpoint=$webhook_endpoint \
+        --push-auth-service-account=$sa_ciscomcd_controller_email
 fi
 
 # check if a logging sink exists
