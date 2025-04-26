@@ -147,6 +147,7 @@ echo "Adding roles to the Multicloud Defense Gateway service account: $sa_ciscom
 gw_roles=(
     "roles/secretmanager.secretAccessor"
     "roles/logging.logWriter"
+    "roles/storage.objectCreator"
 )
 
 for role in ${gw_roles[@]}; do
