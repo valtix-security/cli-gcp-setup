@@ -132,6 +132,7 @@ controller_roles=(
     "roles/logging.admin"
     "roles/storage.admin"
     "roles/iam.serviceAccountTokenCreator"
+    "roles/aiplatform.viewer"
 )
 for role in ${controller_roles[@]}; do
     echo "Add \"$role\""
