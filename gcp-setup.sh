@@ -2,7 +2,6 @@
 
 # Script used to configure/prepare the GCP project so the Multicloud Defense Controller can manage it
 # The executor of this script needs the following permissions/roles
-
 # Logging Admin - roles/logging.admin
 # Pub/Sub Admin - roles/pubsub.admin
 # Security Admin - roles/iam.securityAdmin
@@ -13,7 +12,6 @@
 # Compute Admin - roles/compute.admin
 # DNS Administrator - roles/dns.admin
 # Service Account Token Creator  - roles/iam.serviceAccountTokenCreator
-
 # Create 2 service accounts (for Multicloud Defense Controller and Multicloud Defense Gateway)
 # Create a pub/sub topic and subscription
 # Create storage bucket for the flow logs
@@ -45,27 +43,36 @@ done
 
 output=$(gcloud projects list --sort-by projectId --format 'value(projectId)')
 project=($output)
+
 echo "Select your project"
 echo
+
 num=1
 for i in ${project[@]}; do
 	echo "[$num] $i"
 	num=$(expr $num + 1 )
 done
+
 num=$(expr $num - 1)
 echo
+
 read -p "Enter number from 1 - $num:  " yn
 echo
+
 yn=$(expr $yn - 1)
 echo "You selected ${project[$yn]}"
 echo
+
 read -p "Continue configuring this project? [y/n] " -n 1 -r
 if [[ $REPLY != y ]]; then
     exit 1
 fi
+
 echo
 echo
+
 gcloud config set project ${project[$yn]}
+
 echo "Enable API Services on the project"
 apis=(
     compute.googleapis.com
@@ -75,6 +82,7 @@ apis=(
     dns.googleapis.com
     secretmanager.googleapis.com
 )
+
 for api in ${apis[@]}; do
     echo "Enable $api"
     gcloud services enable $api
@@ -85,9 +93,9 @@ sa_controller_name=${prefix}-controller
 sa_gateway_name=${prefix}-gateway
 
 echo "Creating service accounts"
-
 echo "Creating Multicloud Defense Controller service account: $sa_controller_name"
 controller_result=$(gcloud iam service-accounts list --format=json --filter=name:$sa_controller_name | jq -r .[0].email)
+
 if [ "$controller_result" != "null" ]; then
     echo "Multicloud Defense Controller service account already exists, Skipping"
 else
@@ -99,6 +107,7 @@ fi
 
 echo "Creating Multicloud Defense Gateway service account: $sa_gateway_name"
 gateway_result=$(gcloud iam service-accounts list --format=json --filter=name:$sa_gateway_name | jq -r .[0].email)
+
 if [ "$gateway_result" != "null" ]; then
     echo "Multicloud Defense Gateway service account already exists, Skipping"
 else
@@ -131,9 +140,9 @@ controller_roles=(
     "roles/pubsub.admin"
     "roles/logging.admin"
     "roles/storage.admin"
-    "roles/iam.serviceAccountTokenCreator"
     "roles/aiplatform.viewer"
 )
+
 for role in ${controller_roles[@]}; do
     echo "Add \"$role\""
     gcloud projects add-iam-policy-binding $project_id \
@@ -142,6 +151,13 @@ for role in ${controller_roles[@]}; do
         --condition=None \
         --no-user-output-enabled --quiet
 done
+
+
+echo "Granting ServiceAccountTokenCreator role to controller service account at service account level"
+gcloud iam service-accounts add-iam-policy-binding $sa_ciscomcd_controller_email \
+    --member="serviceAccount:$sa_ciscomcd_controller_email" \
+    --role="roles/iam.serviceAccountTokenCreator" \
+    --no-user-output-enabled --quiet
 
 echo
 echo "Adding roles to the Multicloud Defense Gateway service account: $sa_ciscomcd_gateway_email"
@@ -171,6 +187,7 @@ echo "Setting up real time inventory in project: $project_id"
 # check if a pub/sub topic exists
 echo "Creating Multicloud Defense inventory pub/sub topic: $inventory_topic_name"
 inventory_topic_id=$(gcloud pubsub topics describe $inventory_topic_name --format=json 2>/dev/null | jq -r .name)
+
 if [ "$inventory_topic_id" != "" ]; then
     echo "Multicloud Defense inventory pub/sub topic already exists, Skipping"
 else
@@ -180,6 +197,7 @@ fi
 # check if a pub/sub subscription exists
 echo "Creating Multicloud Defense inventory pub/sub subscription: $inventory_subscription_name"
 inventory_subscription_id=$(gcloud pubsub subscriptions describe $inventory_subscription_name --format=json 2>/dev/null | jq -r .name)
+
 if [ "$inventory_subscription_id" != "" ]; then
      echo "Multicloud Defense inventory pub/sub subscription already exists, Skipping"
 else
@@ -192,6 +210,7 @@ fi
 # check if a logging sink exists
 echo "Creating Multicloud Defense inventory logging sink: $inventory_sink_name"
 inventory_sink_id=$(gcloud logging sinks describe $inventory_sink_name --format=json 2>/dev/null | jq -r .name)
+
 if [ "$inventory_sink_id" != "" ]; then
      echo "Multicloud Defense inventory logging sink already exists, Skipping"
 else
@@ -202,6 +221,7 @@ fi
 
 # grant pub/sub publisher role to the writer identity of logging sink on the topic
 inventory_sink_writer_identity=$(gcloud logging sinks --format=json describe $inventory_sink_name 2>/dev/null | jq -r .writerIdentity)
+
 if [ "$inventory_sink_writer_identity" == "" ]; then
     echo "Multicloud Defense inventory logging sink does not have proper writer identity"
 else
@@ -213,8 +233,10 @@ fi
 
 # create a cloud storage bucket for traffic logs
 storage_bucket_name=${prefix}-log-bucket
+
 echo "Creating cloud storage bucket for traffic logs: $storage_bucket_name"
 err_msg=$(gsutil du -s gs://$storage_bucket_name 2>/dev/null | grep "$storage_bucket_name")
+
 if [ "$err_msg" != "" ]; then
     echo "Cloud Storage Bucket already exists, Skipping"
 else
@@ -226,6 +248,7 @@ gcloud iam service-accounts keys create ~/${prefix}_key.json \
   --iam-account $sa_ciscomcd_controller_email
 
 private_key=$(cat ~/${prefix}_key.json | jq -r .private_key)
+
 echo "-----------------------------------------------------------------------------------"
 echo "# Information required to onboard this project to the Multicloud Defense Controller"
 echo "-----------------------------------------------------------------------------------"
@@ -235,8 +258,10 @@ echo "Private Key: ${private_key}"
 echo "Storage Bucket: $storage_bucket_name"
 
 cleanup_file=delete-gcp-setup.sh
+
 echo > $cleanup_file
 echo "Create uninstaller script in the current directory '$cleanup_file'"
+
 for role in ${controller_roles[@]}; do
     echo gcloud projects remove-iam-policy-binding $project_id \
         --member serviceAccount:$sa_ciscomcd_controller_email \
@@ -244,6 +269,13 @@ for role in ${controller_roles[@]}; do
         --condition=None \
         --no-user-output-enabled --quiet >> $cleanup_file
 done
+
+# Remove service account-level token creator role
+echo "gcloud iam service-accounts remove-iam-policy-binding ${sa_ciscomcd_controller_email} \
+    --member=\"serviceAccount:${sa_ciscomcd_controller_email}\" \
+    --role=\"roles/iam.serviceAccountTokenCreator\" \
+    --quiet" >> $cleanup_file
+
 for role in ${gw_roles[@]}; do
     echo gcloud projects remove-iam-policy-binding $project_id \
         --member serviceAccount:$sa_ciscomcd_gateway_email \
@@ -251,6 +283,7 @@ for role in ${gw_roles[@]}; do
         --condition=None \
         --no-user-output-enabled --quiet >> $cleanup_file
 done
+
 echo "gcloud iam service-accounts delete ${sa_ciscomcd_gateway_email} --quiet" >> $cleanup_file
 echo "gcloud iam service-accounts delete ${sa_ciscomcd_controller_email} --quiet" >> $cleanup_file
 echo "gcloud logging sinks delete ${inventory_sink_name} --quiet" >> $cleanup_file
@@ -258,4 +291,5 @@ echo "gcloud pubsub subscriptions delete ${inventory_subscription_name} --quiet"
 echo "gcloud pubsub topics delete ${inventory_topic_name} --quiet" >> $cleanup_file
 echo "gsutil rm -r gs://${storage_bucket_name}" >> $cleanup_file
 echo "rm $cleanup_file" >> $cleanup_file
+
 chmod +x $cleanup_file
